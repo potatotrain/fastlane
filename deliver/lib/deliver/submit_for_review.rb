@@ -6,6 +6,8 @@ require 'fastlane_core/pkg_file_analyser'
 
 module Deliver
   class SubmitForReview
+    TIMEOUT = 1.hour
+
     def submit!(options)
       app = Deliver.cache[:app]
 
@@ -47,6 +49,20 @@ module Deliver
       end
 
       submission.add_app_store_version_to_review_items(app_store_version_id: version.id)
+
+      Timeout::timeout(TIMEOUT.to_i) do
+        loop do
+          status = Spaceship::ConnectAPI::AppStoreVersion::AppStoreState::READY_FOR_REVIEW
+          latest = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: version.id)
+
+          break if latest.app_store_state == status
+
+          UI.message("Waiting for the state of the version to become #{status}...")
+
+          sleep 15
+        end
+      end
+
       submission.submit_for_review
     end
 
